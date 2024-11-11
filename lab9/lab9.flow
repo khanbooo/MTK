@@ -1,0 +1,190 @@
+import lingo/pegcode/driver;
+import ds/tree;
+
+Expression ::= Add, Multiply, Subtract, Divide, Negative, Variable, Integer;
+
+Add(e1: Expression, e2: Expression);
+Multiply(e1: Expression, e2: Expression);
+Subtract(e1: Expression, e2: Expression);
+Divide(e1: Expression, e2: Expression);
+Negative(e1: Expression);
+Variable(name: string);
+Integer(numerator: int);
+
+myTerm (vars: Tree<string, int>);
+
+myPolynom (terms: Tree<myTerm, int>);
+
+parseAST(e: Expression) -> string{
+    switch(e){
+        Integer(number): {
+            i2s(number)
+        }
+        Add(e1, e2): {
+            strGlue(["(", parseAST(e1), " + ", parseAST(e2), ")"], "")
+        }
+        Multiply(e1, e2): {
+            strGlue(["(", parseAST(e1), " * ", parseAST(e2), ")"], "")
+        }
+        Subtract(e1, e2): {
+            strGlue(["(", parseAST(e1), " - ", parseAST(e2), ")"], "")
+        }
+        Divide(e1, e2): {
+            strGlue(["(", parseAST(e1), " / ", parseAST(e2), ")"], "")
+        }
+        Negative(e1): {
+            strGlue(["(-", parseAST(e1), ")"], "")
+        }
+        Variable(var): {
+            var
+        }
+    }
+}
+
+tMultiply(t1: myTerm, t2: myTerm) -> myTerm{
+    myTerm(mergeTreeCustom(t1.vars, t2.vars, \var, k1, k2 -> k1 + k2))
+}
+
+pNegative(p1: myPolynom) -> myPolynom{
+    myPolynom(mapTree(p1.terms, \num -> -num))
+}
+
+pAdd(p1: myPolynom, p2: myPolynom) -> myPolynom{
+    myPolynom(filterTree(mergeTreeCustom(p1.terms, p2.terms, \_, koefs1, koefs2 -> koefs1 + koefs2), \terms, num -> !(num==0)))
+}
+
+pSubtract(p1: myPolynom, p2: myPolynom) -> myPolynom{
+    pAdd(p1, pNegative(p2))
+}
+
+pMultiply(p1: myPolynom, p2: myPolynom) -> myPolynom{
+    foldTree(p1.terms, myPolynom(makeTree()), \term, koef, ans -> {
+        multiplied_term = myPolynom(foldTree(p2.terms, makeTree(), \scndterm, scndkoef, scndans -> setTree(scndans, tMultiply(term, scndterm), koef * scndkoef)));
+        pAdd(multiplied_term, ans)
+    })
+}
+
+p2s(p: myPolynom) -> string{
+    foldTree(
+        p.terms,
+        "",
+        \term, koef, ans -> {
+            stringified_term = foldTree(term.vars, "", \var, st, str -> {str + if (st == 1) {var} else {var + "^" + i2s(st)}});
+
+            ans + if (ans == ""){
+                if (koef == -1){
+                    "-" + stringified_term
+                }
+                else if (koef == 1){
+                    stringified_term
+                }
+                else{
+                    i2s(koef) + stringified_term
+                }
+            }
+            else {
+                if (koef == -1){
+                    " - " + stringified_term
+                }
+                else if (koef == 1){
+                    " + " + stringified_term
+                }
+                else if (koef > 0){
+                    " + " + i2s(koef) + stringified_term
+                }
+                else{
+                    " - " + i2s(-koef) + stringified_term
+                }
+            }
+        }
+    )
+}
+
+r_to_polynom(e: Expression) -> myPolynom{
+    switch (e){
+        Add(l, r): {
+            pAdd(r_to_polynom(l), r_to_polynom(r))
+        }
+        Subtract(l, r): {
+            pSubtract(r_to_polynom(l), r_to_polynom(r))
+        }
+        Multiply(l, r): {
+            pMultiply(r_to_polynom(l), r_to_polynom(r))
+        }
+        Divide(l, r): {
+            myPolynom(makeTree())
+        }
+        Negative(expr): {
+            pNegative(r_to_polynom(expr))
+        }
+        Integer(val): {
+            term = myTerm(makeTree());
+            myPolynom(makeTree1(term, val))
+        }
+        Variable(var): {
+            term = myTerm(makeTree1(var, 1));
+            myPolynom(makeTree1(term, 1))
+        }
+    }
+}
+
+init_grammar(){
+    compilePegGrammar("#include C:\\flow9\\MTK\\lab9\\arith.lingo");
+}
+
+build_ast(str: string) -> Expression{
+    parsic(init_grammar(), str, defaultPegActions)
+}
+
+to_rational_form(e: Expression) -> Divide{
+    switch (e){
+        Add(l, r): {
+            rational_l = to_rational_form(l);
+            rational_r = to_rational_form(r);
+            Divide(Add(Multiply(rational_l.e1, rational_r.e2), Multiply(rational_l.e2, rational_r.e1)), Multiply(rational_l.e2, rational_r.e2))
+        }
+        Subtract(l, r): {
+            rational_l = to_rational_form(l);
+            rational_r = to_rational_form(r);
+            Divide(Subtract(Multiply(rational_l.e1, rational_r.e2), Multiply(rational_l.e2, rational_r.e1)), Multiply(rational_l.e2, rational_r.e2))
+        }
+        Multiply(l, r): {
+            rational_l = to_rational_form(l);
+            rational_r = to_rational_form(r);
+            Divide(Multiply(rational_l.e1, rational_r.e1), Multiply(rational_l.e2, rational_r.e2))
+        }
+        Divide(l, r): {
+            rational_l = to_rational_form(l);
+            rational_r = to_rational_form(r);
+            Divide(Multiply(rational_l.e1, rational_r.e2), Multiply(rational_l.e2, rational_r.e1))
+        }
+        Negative(expr): {
+            rational_val = to_rational_form(expr);
+            Divide(Negative(rational_val.e1), rational_val.e2)
+        }
+        Integer(val): {
+            Divide(Integer(val), Integer(1))
+        }
+        Variable(var): {
+            Divide(Variable(var), Integer(1))
+        }
+    }
+}
+
+main(){
+    // str = "((((y / 4) * (5 + y)) * ((x - z) * (1 / x))) / ((3 + 1) / (z * 2)))";
+
+    str = "((((a + 1) / (7 * c)) * ((7 + (6 * c)) / x)) / ((3 * (a + 1)) / (x * x)))";
+
+    // str = "((((x - 6) / (6 * y)) / (((x * x) - (y * y)) / y)) * (((x * x) + ((2 * (x * y)) + (y * y))) / x))";
+
+    // str = "((((9 * (x * x)) - 4) / ((3 * x) + 2)) - (3 * x))";
+
+    // str = "(((4 * (a * a)) - 9) * ((1 / ((2 * a) - 3)) - (1 / ((2 * a) + 3))))";
+    // str = "((z + 1) / ((-x) + 1))";
+    // str = "(((-z) - 3) + (-2))";
+    // str = "(1 / x)";
+    ast = build_ast(str);
+    rational = to_rational_form(ast);
+    println("(" + p2s(r_to_polynom(rational.e1)) + ") / (" + p2s(r_to_polynom(rational.e2)) +")");
+}
