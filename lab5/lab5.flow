@@ -1,0 +1,51 @@
+import lingo/pegcode/driver;
+
+ArExpr ::= ArInt, ArMult, ArSum;
+ArSum(e1: ArExpr, e2: ArExpr);
+ArMult(e1: ArExpr, e2: ArExpr);
+ArInt(number: int);
+
+s2ar(str: string) -> ArExpr{
+    gr = "#include C:\\flow9\\MTK\\lab5\\arith.lingo";
+    parsic(
+        compilePegGrammar(gr),
+        str, 
+        SemanticActions(setTree(defaultPegActions.t, "createArInt", \s -> ArInt(s2i(s[0]))))
+    )
+}
+
+parseAST(e: ArExpr) -> string{
+    switch(e){
+        ArInt(number): {
+            i2s(number)
+        }
+        ArSum(e1, e2): {
+            strGlue(["(", parseAST(e1), " + ", parseAST(e2), ")"], "")
+        }
+        ArMult(e1, e2): {
+            strGlue(["(", parseAST(e1), " * ", parseAST(e2), ")"], "")
+        }
+    }
+}
+
+solve(e: ArExpr) -> int{
+    switch(e){
+        ArInt(number): {
+            number
+        }
+        ArSum(e1, e2): {
+            solve(e1) + solve(e2)
+        }
+        ArMult(e1, e2): {
+            solve(e1) * solve(e2)
+        }
+    }
+}
+
+main(){
+    str = "(((2+3) * 3) *3)";
+    // str = "((1 + ((2 * 3) * 3)) + 1)";
+    ast = s2ar(str);
+    println(parseAST(ast));
+    println(solve(ast));
+}
