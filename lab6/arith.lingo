@@ -1,0 +1,8 @@
+exp = sum | mult | int;
+
+int = digit+$d {ArInt(s2i($d))};
+digit = '0' - '9';
+ws = ( '\t' | ' ' | '\n' | '\r')*;
+
+sum = "(" ws exp:e1 ws "+" ws exp:e2 ws ")" {ArSum(:e1, :e2)};
+mult = "(" ws exp:e1 ws "*" ws exp:e2 ws ")" {ArMult(:e1, :e2)};

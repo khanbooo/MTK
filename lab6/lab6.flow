@@ -1,0 +1,86 @@
+import lingo/pegcode/driver;
+
+printArrAsString(arr: ref [string]) -> void{
+    println(strGlue(^arr, " "));
+}
+
+final : ref [string] = ref [];
+pstack : PolishStack = PolishStack(ref []);
+
+ArExpr ::= ArInt, ArMult, ArSum;
+ArSum(e1: ArExpr, e2: ArExpr);
+ArMult(e1: ArExpr, e2: ArExpr);
+ArInt(number: int);
+
+PolishStructures ::= PolishStack;
+PolishStack(stack : ref [PolishExpr]);
+
+PolishExpr ::= PolishInt, PolishOperand;
+PolishInt(number: int);
+PolishOperand(op: string);
+
+s2ar(str: string) -> ArExpr{
+    gr = "#include C:\\flow9\\MTK\\lab6\\arith.lingo";
+    parsic(
+        compilePegGrammar(gr),
+        str, 
+        SemanticActions(setTree(defaultPegActions.t, "createArInt", \s -> ArInt(s2i(s[0]))))
+    )
+}
+
+refArrayPop(arr: ref [int]) -> int {
+    elem = ^arr[length(^arr) - 1];
+    arr := take(^arr, length(^arr) - 1);
+    elem
+} 
+
+solve(pstack: PolishStack) -> int{
+    stack: ref [int] = ref [];
+    iter(^(pstack.stack), \x -> {
+        switch(x){
+            PolishInt(number): refArrayPush(stack, number);
+            PolishOperand(op): {
+                if (op == "+"){
+                    summa = refArrayPop(stack) + refArrayPop(stack);
+                    refArrayPush(stack, summa);
+                }
+                else if (op == "*"){
+                    proizv = refArrayPop(stack) * refArrayPop(stack);
+                    refArrayPush(stack, proizv);
+                }
+            }
+        }
+    });
+    ^stack[length(^stack) - 1]
+}
+
+parseASTtoRPN(e: ArExpr) -> int{
+    switch(e){
+        ArInt(number): {
+            refArrayPush(pstack.stack, PolishInt(number));
+            refArrayPush(final, i2s(number));
+        }
+        ArSum(e1, e2): {
+            parseASTtoRPN(e1);
+            parseASTtoRPN(e2);
+            refArrayPush(pstack.stack, PolishOperand("+"));
+            refArrayPush(final, "+");
+        }
+        ArMult(e1, e2): {
+            parseASTtoRPN(e1);
+            parseASTtoRPN(e2);
+            refArrayPush(pstack.stack, PolishOperand("*"));
+            refArrayPush(final, "*");
+        }
+    }
+    solve(pstack)
+}
+
+main(){
+    str = "((1 + ((2 * 3) * 3)) + 20000)";
+    // str = "(((2+3) * 3) *3)";
+    ast = s2ar(str);
+    ans = parseASTtoRPN(ast);
+    printArrAsString(final);
+    println(ans);
+}
