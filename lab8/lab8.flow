@@ -1,0 +1,169 @@
+import lingo/pegcode/driver;
+import ds/tree;
+
+Expression ::= Add, Multiply, Subtract, Divide, Negative, Variable, Integer;
+
+Add(e1: Expression, e2: Expression);
+Multiply(e1: Expression, e2: Expression);
+Subtract(e1: Expression, e2: Expression);
+Divide(e1: Expression, e2: Expression);
+Negative(e1: Expression);
+Variable(name: string);
+Integer(numerator: int);
+
+parseAST(e: Expression) -> string{
+    switch(e){
+        Integer(number): {
+            i2s(number)
+        }
+        Add(e1, e2): {
+            strGlue(["(", parseAST(e1), " + ", parseAST(e2), ")"], "")
+        }
+        Multiply(e1, e2): {
+            strGlue(["(", parseAST(e1), " * ", parseAST(e2), ")"], "")
+        }
+        Subtract(e1, e2): {
+            strGlue(["(", parseAST(e1), " - ", parseAST(e2), ")"], "")
+        }
+        Divide(e1, e2): {
+            strGlue(["(", parseAST(e1), " / ", parseAST(e2), ")"], "")
+        }
+        Negative(e1): {
+            strGlue(["(-", parseAST(e1), ")"], "")
+        }
+        Variable(var): {
+            var
+        }
+    }
+}
+
+differentiate(e: Expression, variable: string) -> Expression{
+    switch(e){
+        Integer(val): Integer(0)
+        Variable(name): {
+            if (name == variable){
+                Integer(1)
+            }
+            else{
+                Integer(0)
+            }
+        }
+        Add(e1, e2): Add(differentiate(e1, variable), differentiate(e2, variable))
+        Multiply(e1, e2): Add(Multiply(differentiate(e1, variable), e2), Multiply(e1, differentiate(e2, variable)))
+        Subtract(e1, e2): Subtract(differentiate(e1, variable), differentiate(e2, variable))
+        Divide(e1, e2): Divide(Subtract(Multiply(differentiate(e1, variable), e2), Multiply(e1, differentiate(e2, variable))), Multiply(e2, e2))
+        Negative(e1): Negative(differentiate(e1, variable))
+    }
+}
+
+simplify(e: Expression) -> Expression{
+    switch(e){
+        Add(e1, e2) : {
+            exp1 = simplify(e1);
+            exp2 = simplify(e2);
+
+            if (exp1 == Integer(0)){
+                exp2
+            }
+            else if (exp2 == Integer(0)){
+                exp1
+            }
+            else{
+                Add(exp1, exp2)
+            }
+        }
+
+        Multiply(e1, e2) : {
+            exp1 = simplify(e1);
+            exp2 = simplify(e2);
+
+            if (exp1 == Integer(0) || exp2 == Integer(0)){
+                Integer(0)
+            }
+            else if (exp1 == Integer(1)){
+                exp2
+            }
+            else if (exp2 == Integer(1)){
+                exp1
+            }
+            else if (exp1 == Negative(Integer(1))){
+                simplify(Negative(exp2))
+            }
+            else if (exp2 == Negative(Integer(1))){
+                simplify(Negative(exp1))
+            }
+            else{
+                Multiply(exp1, exp2)
+            }
+        }
+
+        Subtract(e1, e2) : {
+            exp1 = simplify(e1);
+            exp2 = simplify(e2);
+
+            if (exp1 == Integer(0)){
+                simplify(Negative(exp2))
+            }
+            else if (exp2 == Integer(0)){
+                exp1
+            }
+            else{
+                Subtract(exp1, exp2)
+            }
+        }
+        
+        Divide(e1, e2) : {
+            exp1 = simplify(e1);
+            exp2 = simplify(e2);
+
+            if (exp1 == Integer(0)){
+                Integer(0)
+            }
+            else if (exp2 == Integer(1)){
+                exp1
+            }
+            else{
+                Divide(exp1, exp2)
+            }
+        }
+
+        Negative(e1) : {
+            switch (e1){
+                Negative(expression): simplify(expression)
+                Integer(value): {
+                    if (value == 0){
+                        Integer(0)
+                    }
+                    else{
+                        Negative(Integer(value))
+                    }
+                }
+                default: Negative(simplify(e1))
+            }
+        }
+
+        Variable(var): Variable(var)
+        Integer(numerator): Integer(numerator)
+    }
+}
+
+init_grammar(){
+    compilePegGrammar("#include C:\\flow9\\MTK\\lab8\\arith.lingo");
+}
+
+build_ast(str: string) -> Expression{
+    parsic(init_grammar(), str, defaultPegActions)
+}
+
+main(){
+    // str = "(((x + y) / 1000) * (((-z) - 3) + (-2)))";
+    // str = "((z + 1) / ((-x) + 1))";
+    // str = "(((-z) - 3) + (-2))";
+    // str = "(1 / x)";
+    str = "(((x * x) * 3) + ((10 * x) + 5))";
+    ast = build_ast(str);
+    differentiated = differentiate(ast, "x");
+    simplified = simplify(differentiated);
+    println(parseAST(differentiated));
+    println(parseAST(simplified));
+}
