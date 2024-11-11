@@ -1,0 +1,145 @@
+import lingo/pegcode/driver;
+import ds/tree;
+
+Expression ::= Add, Multiply, Subtract, Divide, Negative, Variable, Integer, Equals;
+
+Add(e1: Expression, e2: Expression);
+Multiply(e1: Expression, e2: Expression);
+Subtract(e1: Expression, e2: Expression);
+Divide(e1: Expression, e2: Expression);
+Equals(e1: Expression, e2: Expression);
+Negative(e1: Expression);
+Variable(name: string);
+Integer(numerator: int);
+
+parseAST(e: Expression) -> string{
+    switch(e){
+        Integer(number): {
+            i2s(number)
+        }
+        Add(e1, e2): {
+            strGlue(["(", parseAST(e1), " + ", parseAST(e2), ")"], "")
+        }
+        Multiply(e1, e2): {
+            strGlue(["(", parseAST(e1), " * ", parseAST(e2), ")"], "")
+        }
+        Subtract(e1, e2): {
+            strGlue(["(", parseAST(e1), " - ", parseAST(e2), ")"], "")
+        }
+        Divide(e1, e2): {
+            strGlue(["(", parseAST(e1), " / ", parseAST(e2), ")"], "")
+        }
+        Equals(e1, e2): {
+            strGlue(["(", parseAST(e1), " = ", parseAST(e2), ")"], "")
+        }
+        Negative(e1): {
+            strGlue(["(-", parseAST(e1), ")"], "")
+        }
+        Variable(var): {
+            var
+        }
+    }
+}
+
+transformExpression(rules: Tree<Expression, Expression>, e: Expression) -> Expression {
+    maybeMatch = lookupTree(rules, e);
+    switch (maybeMatch) {
+        Some(transformed): transformExpression(rules, transformed);
+        None(): {
+            switch (e) {
+                Add(e1, e2): {
+                    newE1 = transformExpression(rules, e1);
+                    newE2 = transformExpression(rules, e2);
+                    maybeNewMatch = lookupTree(rules, Add(newE1, newE2));
+                    switch (maybeNewMatch) {
+                        Some(result): transformExpression(rules, result);
+                        None(): Add(newE1, newE2);
+                    }
+                }
+                Multiply(e1, e2): {
+                    newE1 = transformExpression(rules, e1);
+                    newE2 = transformExpression(rules, e2);
+                    maybeNewMatch = lookupTree(rules, Multiply(newE1, newE2));
+                    switch (maybeNewMatch) {
+                        Some(result): transformExpression(rules, result);
+                        None(): Multiply(newE1, newE2);
+                    }
+                }
+                Subtract(e1, e2): {
+                    newE1 = transformExpression(rules, e1);
+                    newE2 = transformExpression(rules, e2);
+                    maybeNewMatch = lookupTree(rules, Subtract(newE1, newE2));
+                    switch (maybeNewMatch) {
+                        Some(result): transformExpression(rules, result);
+                        None(): Subtract(newE1, newE2);
+                    }
+                }
+                Divide(e1, e2): {
+                    newE1 = transformExpression(rules, e1);
+                    newE2 = transformExpression(rules, e2);
+                    maybeNewMatch = lookupTree(rules, Divide(newE1, newE2));
+                    switch (maybeNewMatch) {
+                        Some(result): transformExpression(rules, result);
+                        None(): Divide(newE1, newE2);
+                    }
+                }
+                Negative(e1): {
+                    newE1 = transformExpression(rules, e1);
+                    maybeNewMatch = lookupTree(rules, Negative(newE1));
+                    switch (maybeNewMatch) {
+                        Some(result): transformExpression(rules, result);
+                        None(): Negative(newE1);
+                    }
+                }
+                default: e;
+            }
+        }
+    }
+}
+
+init_grammar(){
+    compilePegGrammar("#include C:\\flow9\\MTK\\lab10\\arith.lingo");
+}
+
+s2expr(str: string) -> Expression{
+    parsic(init_grammar(), str, defaultPegActions)
+}
+
+main() {
+    example = "((((x * (y + z)) + 2) / ((y + z) / (x + 2))) * (y + z))";
+    // example = "((((a + 1) / (7 * c)) * ((7 + (6 * c)) / x)) / ((3 * (a + 1)) / (x * x)))";
+    expr = s2expr(example);
+
+    rules: Tree<Expression, Expression> = fold(
+        [
+            "((x + 0) = x)",
+            "((y + z) = (1 / (z + y)))",
+            "((x * (1 / (z + y))) = (x / (z + y)))",
+            "((x * 1) = x)",
+            "((x / 1) = x)",
+            "((2 + 2) = 4)",
+            "((z / z) = 1)",
+            "((a * (b + c)) = ((a * b) + (a * c)))",
+            "((x - x) = 0)",
+            "((1 / (z + y)) = 2)",
+        ],
+        makeTree(),
+        \rulesTree: Tree<Expression, Expression>, rule: string -> {
+            parsed = s2expr(rule);
+            switch(parsed){
+                Equals(l, r): setTree(rulesTree, l, r);
+                default: rulesTree;
+            }
+        }
+    );
+
+    foldTree(rules, "", \left, right, acc -> {
+        println(parseAST(left) + " = " + parseAST(right));
+        acc
+    });
+    transformed = parseAST(transformExpression(rules, expr));
+    println("Original: " + example);
+    println("Transformed: " + transformed);
+
+    
+}

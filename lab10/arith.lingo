@@ -1,0 +1,14 @@
+exp = sum | mult | sub | div | neg | int | var | eq;
+
+int = digit+$d {Integer(s2i($d))};
+var = letter+$l {Variable($l)};
+letter = 'a' - 'z';
+digit = '0' - '9';
+ws = ( '\t' | ' ' | '\n' | '\r')*;
+
+sum = "(" ws exp:e1 ws "+" ws exp:e2 ws ")" {Add(:e1, :e2)};
+mult = "(" ws exp:e1 ws "*" ws exp:e2 ws ")" {Multiply(:e1, :e2)};
+sub = "(" ws exp:e1 ws "-" ws exp:e2 ws ")" {Subtract(:e1, :e2)};
+div = "(" ws exp:e1 ws "/" ws exp:e2 ws ")" {Divide(:e1, :e2)};
+neg = "(" ws "-" exp:e1 ")" {Negative(:e1)};
+eq = "(" ws exp:e1 ws "=" ws exp:e2 ws ")" {Equals(:e1, :e2)};
