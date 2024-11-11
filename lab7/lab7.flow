@@ -1,0 +1,135 @@
+import lingo/pegcode/driver;
+import ds/tree;
+
+Expression ::= Add, Multiply, Subtract, Divide, Negative, Rational, Variable;
+
+Add(e1: Expression, e2: Expression);
+Multiply(e1: Expression, e2: Expression);
+Subtract(e1: Expression, e2: Expression);
+Divide(e1: Expression, e2: Expression);
+Negative(e1: Expression);
+Variable(name: string);
+Rational(numerator: int, denominator: int);
+
+add(e1: Rational, e2: Rational) -> Rational{
+    if (e1.denominator == 0 || e2.denominator == 0){
+        Rational(0, 0)
+    }
+    else{
+        least_common_multiple = lcm(e1.denominator, e2.denominator);
+        Rational(e1.numerator * (least_common_multiple / e1.denominator) + e2.numerator * (least_common_multiple / e2.denominator), least_common_multiple)
+    }
+}
+
+multiply(e1: Rational, e2: Rational) -> Rational{
+    if (e1.denominator == 0 || e2.denominator == 0){
+        Rational(0, 0)
+    }
+    else{
+        simplify(Rational(e1.numerator * e2.numerator, e1.denominator * e2.denominator))
+    }
+}
+
+subtract(e1: Rational, e2: Rational) -> Rational{
+    if (e1.denominator == 0 || e2.denominator == 0){
+        Rational(0, 0)
+    }
+    else{
+        least_common_multiple = lcm(e1.denominator, e2.denominator);
+        Rational(e1.numerator * (least_common_multiple / e1.denominator) - e2.numerator * (least_common_multiple / e2.denominator), least_common_multiple)
+    }
+}
+
+divide(e1: Rational, e2: Rational) -> Rational{
+    if (e1.denominator == 0 || e2.denominator == 0 || e2.numerator == 0){
+        Rational(0, 0)
+    }
+    else{
+        multiply(e1, Rational(e2.denominator, e2.numerator))
+    }
+} 
+
+negative(e: Rational) -> Rational{
+    if (e.denominator == 0){
+        Rational(0, 0)
+    }
+    else{
+        Rational(-e.numerator, e.denominator)
+    }
+}
+
+r2s(r: Rational) -> string{
+    if (r.denominator == 0){
+        "Division by zero\n";
+    }
+    else if (r.denominator == 1){
+        i2s(r.numerator);
+    }
+    else if (r.denominator < 0){
+        concatStrings([i2s(-r.numerator), "/", i2s(-r.denominator)]);
+    }
+    else{
+        concatStrings([i2s(r.numerator), "/", i2s(r.denominator)]);
+    }
+}
+
+simplify(r: Rational) -> Rational{
+    divider = gcd(r.numerator, r.denominator);
+    if (divider == 0){
+        r
+    }
+    else{
+        Rational(r.numerator / divider, r.denominator / divider)
+    }
+}
+
+calculate(e: Expression, variables: Tree<string, Rational>) -> Rational{
+    switch(e){
+        Rational(numerator, denominator): {
+            if (denominator == 0){
+                Rational(0, 0)
+            }
+            else{
+                e
+            }
+        }
+        Variable(name): {
+            switch(lookupTree(variables, name)){
+                Some(value): value
+                None(): Rational(0, 0)
+            }
+        }
+        Add(e1, e2): add(calculate(e1, variables), calculate(e2, variables))
+        Multiply(e1, e2): multiply(calculate(e1, variables), calculate(e2, variables))
+        Subtract(e1, e2): subtract(calculate(e1, variables), calculate(e2, variables))
+        Divide(e1, e2): divide(calculate(e1, variables), calculate(e2, variables))
+        Negative(e1): negative(calculate(e1, variables))
+    }
+}
+
+setVariables() -> Tree<string, Rational>{
+    tree: ref Tree<string, Rational> = ref makeTree();
+    tree := setTree(^tree, "x", Rational(1, 1));
+    tree := setTree(^tree, "y", Rational(1, 3));
+    tree := setTree(^tree, "z", Rational(10, 3));
+    ^tree
+}
+
+init_grammar(){
+    compilePegGrammar("#include C:\\flow9\\MTK\\lab7\\arith.lingo");
+}
+
+solve(str: string, variables: Tree<string, Rational>) -> Rational{
+    calculate(parsic(init_grammar(), str, defaultPegActions), variables)
+}
+
+main(){
+    variables = setVariables();
+    //str = "(((x + y) / (1-x)) * (((-z) - 3) + (-2)))";
+    str = "((1/1000000000)+(1/1000000000))";
+    // str = "((1 / 2147483647) + (2 / 2147483647))";
+    // str = "((((x + y) / 1000) * (((-z) - 3) + (-2))) / 0)";
+    // str = "(1 / (1 / 0))";
+    
+    println(r2s(simplify(solve(str, variables))));
+}
