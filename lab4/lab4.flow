@@ -1,0 +1,33 @@
+import runtime;
+import string;
+import ds/tree;
+
+printArrAsString(arr: [int]) -> void{
+    println(strGlue(map(arr, \elem -> i2s(elem)), " "));
+}
+
+inds(n: [int], m: int) -> [Pair<int, int>]{
+    tree : Tree<int, [int]> = 
+    foldi(n, makeTree(), \i, tree, elem ->{
+        switch(lookupTree(tree, elem)){
+            Some(arr): setTree(tree, elem, concat(arr, [i]));
+            None(): setTree(tree, elem, [i]);
+        }   
+    })
+
+    foldi(n, [], \i, ans, elem -> {
+        switch(lookupTree(tree, m - elem)){
+            Some(arr): concat(ans, map(arr, \j -> Pair(i, j)));
+            None(): ans
+        }
+    })
+}
+
+main() {
+    n = [2, 5, 6, 2, 3, 4, 7, 8, 1, 1, 2, 3, 4, 1, 6, 6];
+    // printArrAsString(n);
+    m = 7;
+	pairs: [Pair<int, int>] = inds(n, m);
+    iter(pairs, \pair -> printArrAsString([(pair.first), (pair.second)]));
+}
+
