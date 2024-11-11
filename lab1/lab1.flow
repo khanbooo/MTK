@@ -1,0 +1,12 @@
+import runtime;
+import string;
+
+printArrAsString(arr: [int]) -> void{
+    println(strGlue(map(arr, \elem -> i2s(elem)), " "));
+}
+
+main() {
+	arr = [1, 2, 3];
+    printArrAsString(arr);
+}
+
