@@ -1,0 +1,64 @@
+import runtime;
+import string;
+
+printArrAsString(arr: [int]) -> void{
+    println(strGlue(map(arr, \elem -> i2s(elem)), " "));
+}
+
+fib(n: int) -> [int]{
+    if(n == 1){
+        [0]
+    }
+    else{
+        arr = fib(n - 1);
+        if (n == 2){
+            concat(arr, [fold(arr, 1, \x, y -> x + y)])
+        }
+        else{
+            concat(arr, [arr[n - 2] + arr[n - 3]])
+        }
+    }
+}
+
+_fibTail(n: int, a: int, b: int) -> [int]{
+    if (n == 1){
+        [0]
+    }
+    else{
+        concat([a], _fibTail(n - 1, b, a + b))
+    }
+    
+}
+
+fibTail(n: int) -> [int]{
+    _fibTail(n, 0, 1)
+}
+
+_fibRef(n: int, r: ref [int]) -> ref [int]{
+    if (n == 1){
+        refArrayPush(r, 0);
+        r
+    }
+    else if(n == 2){
+        _fibRef(n - 1, r);
+        refArrayPush(r, 1);
+        r
+    }
+    else{
+        _fibRef(n - 1, r);
+        refArrayPush(r, (^r)[n - 2] + (^r)[n - 3]);
+        r
+    }
+}
+
+fibRef(n: int) -> [int]{
+    r : ref [int] = ref [];
+    _fibRef(n, r);
+    ^r
+}
+
+main() {
+    n = 10;
+    printArrAsString(fibRef(n));
+}
+
