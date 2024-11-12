@@ -106,22 +106,22 @@ s2expr(str: string) -> Expression{
 }
 
 main() {
-    example = "((((x * (y + z)) + 2) / ((y + z) / (x + 2))) * (y + z))";
-    // example = "((((a + 1) / (7 * c)) * ((7 + (6 * c)) / x)) / ((3 * (a + 1)) / (x * x)))";
-    expr = s2expr(example);
-
     rules: Tree<Expression, Expression> = fold(
         [
-            "((x + 0) = x)",
-            "((y + z) = (1 / (z + y)))",
-            "((x * (1 / (z + y))) = (x / (z + y)))",
-            "((x * 1) = x)",
-            "((x / 1) = x)",
-            "((2 + 2) = 4)",
-            "((z / z) = 1)",
-            "((a * (b + c)) = ((a * b) + (a * c)))",
-            "((x - x) = 0)",
-            "((1 / (z + y)) = 2)",
+            "((x + y) = 0)",
+            "(((c * 6) + 7) = 1)",
+            "((1 + a) = (b + c))",
+            "(((x * y) + (x * z)) = (x * (y + z)))",
+            "(((a / b) * (c / d)) = ((a * c) / (b * d)))",
+            "(((x * y) * z) = (x * (y * z)))",
+            "(((-x) * (-y)) = (x * y))",
+            "(((a / b) / c) = (a / (b * c)))",
+            "((x + x) = (y + y))",
+            "(((a * b) + (c * d)) = ((d * a) + (b * c)))",
+            "(((-x) * y) = (x * (-(-y))))",
+            "(((x + y) * (y + x)) = (x * x))",
+            "(((a / b) * (b / a)) = (-(-1)))",
+            "((x * (y / z)) = ((z * x) / y))",
         ],
         makeTree(),
         \rulesTree: Tree<Expression, Expression>, rule: string -> {
@@ -132,14 +132,27 @@ main() {
             }
         }
     );
-
+    println("Rules:\n+------------------------------------------------------------------------------------------------------------");
     foldTree(rules, "", \left, right, acc -> {
-        println(parseAST(left) + " = " + parseAST(right));
+        println("|" + parseAST(left) + " = " + parseAST(right));
         acc
     });
-    transformed = parseAST(transformExpression(rules, expr));
-    println("Original: " + example);
-    println("Transformed: " + transformed);
-
-    
+    println("+------------------------------------------------------------------------------------------------------------");
+    examples = [ 
+        "((x+y)+z)", 
+        "((((a + 1) / (7 * c)) * (((c * 6) + 7) / x)) / ((3 * (a + 1)) / (x * x)))",
+        "((((-x) * (-y)) * (z * (-w))) * ((a * b) + (c * d)))",
+        "(((x * (y + z)) + (x * (w + v))) / ((a / b) / c))",
+        "(((x + x) * (y / z)) * (((a / b) * (b / a)) + ((x + y) * (y + x))))"
+    ];
+    println("\nExamples:\n+------------------------------------------------------------------------------------------------------------");
+    iter( 
+        examples, \example -> { 
+            expr = s2expr(example);  
+            transformed = parseAST(transformExpression(rules, expr));
+            println("|Original: " + example);
+            println("|Transformed: " + transformed);
+            println("+------------------------------------------------------------------------------------------------------------"); 
+        } 
+    )
 }
