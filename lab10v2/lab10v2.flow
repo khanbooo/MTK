@@ -1,0 +1,297 @@
+import lingo/pegcode/driver;
+import ds/tree;
+
+Expression ::= Add, Multiply, Subtract, Divide, Negative, Variable, Integer, Equals;
+
+Add(e1: Expression, e2: Expression);
+Multiply(e1: Expression, e2: Expression);
+Subtract(e1: Expression, e2: Expression);
+Divide(e1: Expression, e2: Expression);
+Equals(e1: Expression, e2: Expression);
+Negative(e1: Expression);
+Variable(name: string);
+Integer(numerator: int);
+
+parseAST(e: Expression) -> string{
+    switch(e){
+        Integer(number): {
+            i2s(number)
+        }
+        Add(e1, e2): {
+            strGlue(["(", parseAST(e1), " + ", parseAST(e2), ")"], "")
+        }
+        Multiply(e1, e2): {
+            strGlue(["(", parseAST(e1), " * ", parseAST(e2), ")"], "")
+        }
+        Subtract(e1, e2): {
+            strGlue(["(", parseAST(e1), " - ", parseAST(e2), ")"], "")
+        }
+        Divide(e1, e2): {
+            strGlue(["(", parseAST(e1), " / ", parseAST(e2), ")"], "")
+        }
+        Equals(e1, e2): {
+            strGlue(["(", parseAST(e1), " = ", parseAST(e2), ")"], "")
+        }
+        Negative(e1): {
+            strGlue(["(-", parseAST(e1), ")"], "")
+        }
+        Variable(var): {
+            var
+        }
+    }
+}
+
+simplify(e: Expression) -> Expression{
+    switch(e){
+        Add(e1, e2) : {
+            exp1 = simplify(e1);
+            exp2 = simplify(e2);
+
+            if (exp1 == Integer(0)){
+                exp2
+            }
+            else if (exp2 == Integer(0)){
+                exp1
+            }
+            else{
+                Add(exp1, exp2)
+            }
+        }
+
+        Multiply(e1, e2) : {
+            exp1 = simplify(e1);
+            exp2 = simplify(e2);
+
+            if (exp1 == Integer(0) || exp2 == Integer(0)){
+                Integer(0)
+            }
+            else if (exp1 == Integer(1)){
+                exp2
+            }
+            else if (exp2 == Integer(1)){
+                exp1
+            }
+            else if (exp1 == Negative(Integer(1))){
+                simplify(Negative(exp2))
+            }
+            else if (exp2 == Negative(Integer(1))){
+                simplify(Negative(exp1))
+            }
+            else{
+                Multiply(exp1, exp2)
+            }
+        }
+
+        Subtract(e1, e2) : {
+            exp1 = simplify(e1);
+            exp2 = simplify(e2);
+
+            if (exp1 == Integer(0)){
+                simplify(Negative(exp2))
+            }
+            else if (exp2 == Integer(0)){
+                exp1
+            }
+            else{
+                Subtract(exp1, exp2)
+            }
+        }
+        
+        Divide(e1, e2) : {
+            exp1 = simplify(e1);
+            exp2 = simplify(e2);
+
+            if (exp1 == Integer(0)){
+                Integer(0)
+            }
+            else if (exp2 == Integer(1)){
+                exp1
+            }
+            else{
+                Divide(exp1, exp2)
+            }
+        }
+
+        Negative(e1) : {
+            switch (e1){
+                Negative(expression): simplify(expression)
+                Integer(value): {
+                    if (value == 0){
+                        Integer(0)
+                    }
+                    else{
+                        Negative(Integer(value))
+                    }
+                }
+                default: Negative(simplify(e1))
+            }
+        }
+
+        Variable(var): Variable(var)
+        Integer(numerator): Integer(numerator)
+        default: e
+    }
+}
+
+transformExpression(rules: Tree<Expression, Expression>, e: Expression) -> Expression {
+    maybeMatch = lookupTree(rules, e);
+    switch (maybeMatch) {
+        Some(transformed): transformExpression(rules, transformed);
+        None(): {
+            switch (e) {
+                Add(e1, e2): {
+                    swapMaybeMatch = lookupTree(rules, Add(e2, e1));
+                    switch (swapMaybeMatch) {
+                        Some(result): transformExpression(rules, result);
+                        None(): {
+                            newE1 = transformExpression(rules, e1);
+                            newE2 = transformExpression(rules, e2);
+                            maybeNewMatch = lookupTree(rules, Add(newE1, newE2));
+                            switch (maybeNewMatch) {
+                                Some(result): transformExpression(rules, result);
+                                None(): {
+                                    swapNewMatch = lookupTree(rules, Add(newE2, newE1));
+                                    switch (swapNewMatch) {
+                                        Some(result): transformExpression(rules, result);
+                                        None():Add(newE1, newE2);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    // newE1 = transformExpression(rules, e1);
+                    // newE2 = transformExpression(rules, e2);
+                    // maybeNewMatch = lookupTree(rules, Add(newE1, newE2));
+                    // switch (maybeNewMatch) {
+                    //     Some(result): transformExpression(rules, result);
+                    //     None(): Add(newE1, newE2);
+                    // }
+                }
+                Multiply(e1, e2): {
+                    swapMaybeMatch = lookupTree(rules, Multiply(e2, e1));
+                    switch (swapMaybeMatch) {
+                        Some(result): transformExpression(rules, result);
+                        None(): {
+                            newE1 = transformExpression(rules, e1);
+                            newE2 = transformExpression(rules, e2);
+                            maybeNewMatch = lookupTree(rules, Multiply(newE1, newE2));
+                            switch (maybeNewMatch) {
+                                Some(result): transformExpression(rules, result);
+                                None(): {
+                                    swapNewMatch = lookupTree(rules, Multiply(newE2, newE1));
+                                    switch (swapNewMatch) {
+                                        Some(result): transformExpression(rules, result);
+                                        None(): Multiply(newE1, newE2);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    // newE1 = transformExpression(rules, e1);
+                    // newE2 = transformExpression(rules, e2);
+                    // maybeNewMatch = lookupTree(rules, Multiply(newE1, newE2));
+                    // switch (maybeNewMatch) {
+                    //     Some(result): transformExpression(rules, result);
+                    //     None(): Multiply(newE1, newE2);
+                    // }
+                }
+                Subtract(e1, e2): {
+                    newE1 = transformExpression(rules, e1);
+                    newE2 = transformExpression(rules, e2);
+                    maybeNewMatch = lookupTree(rules, Subtract(newE1, newE2));
+                    switch (maybeNewMatch) {
+                        Some(result): transformExpression(rules, result);
+                        None(): Subtract(newE1, newE2);
+                    }
+                }
+                Divide(e1, e2): {
+                    newE1 = transformExpression(rules, e1);
+                    newE2 = transformExpression(rules, e2);
+                    maybeNewMatch = lookupTree(rules, Divide(newE1, newE2));
+                    switch (maybeNewMatch) {
+                        Some(result): transformExpression(rules, result);
+                        None(): Divide(newE1, newE2);
+                    }
+                }
+                Negative(e1): {
+                    newE1 = transformExpression(rules, e1);
+                    maybeNewMatch = lookupTree(rules, Negative(newE1));
+                    switch (maybeNewMatch) {
+                        Some(result): transformExpression(rules, result);
+                        None(): Negative(newE1);
+                    }
+                }
+                default: e;
+            }
+        }
+    }
+}
+
+init_grammar(){
+    compilePegGrammar("#include C:\\flow9\\MTK\\lab10\\arith.lingo");
+}
+
+s2expr(str: string) -> Expression{
+    parsic(init_grammar(), str, defaultPegActions)
+}
+
+main() {
+    // example = "((((x * (y + z)) + 2) / ((y + z) / (x + 2))) * (y + z))";
+    // // example = "((((a + 1) / (7 * c)) * ((7 + (6 * c)) / x)) / ((3 * (a + 1)) / (x * x)))";
+    // expr = s2expr(example);
+
+    rules: Tree<Expression, Expression> = fold(
+        [
+            "((x + y) = 0)",
+            "(((c * 6) + 7) = 1)",
+            "((1 + a) = (b + c))",
+            "(((x * y) + (x * z)) = (x * (y + z)))", // Distributive law
+            "(((a / b) * (c / d)) = ((a * c) / (b * d)))", // Fraction multiplication
+            "(((x * y) * z) = (x * (y * z)))", // Associative multiplication
+            "(((-x) * (-y)) = (x * y))", // Negative multiplication
+            "(((a / b) / c) = (a / (b * c)))", // Division chain rule
+            "((x + x) = (y + y))",  // All doubles are equal
+            "(((a * b) + (c * d)) = ((d * a) + (b * c)))",  // Cross multiplication chaos
+            "(((-x) * y) = (x * (-(-y))))",  // Double negative confusion
+            "(((x + y) * (y + x)) = (x * x))",  // Symmetric elimination
+            "(((a / b) * (b / a)) = (-(-1)))",  // Circular division
+            "((x * (y / z)) = ((z * x) / y))",  // Random term shuffle
+        ],
+        makeTree(),
+        \rulesTree: Tree<Expression, Expression>, rule: string -> {
+            parsed = s2expr(rule);
+            switch(parsed){
+                Equals(l, r): setTree(rulesTree, l, r);
+                default: rulesTree;
+            }
+        }
+    );
+
+    println("Rules:\n+------------------------------------------------------------------------------------------------------------");
+    foldTree(rules, "", \left, right, acc -> {
+        println("|" + parseAST(left) + " = " + parseAST(right));
+        acc
+    });
+    println("+------------------------------------------------------------------------------------------------------------");
+    // examples = [ 
+    //     "((x+y)+z)", 
+    //     "((((a + 1) / (7 * c)) * ((7 + (6 * c)) / x)) / ((3 * (a + 1)) / (x * x)))" 
+    // ]; 
+    examples = [ 
+        "((x+y)+z)", 
+        "((((a + 1) / (7 * c)) * ((7 + (6 * c)) / x)) / ((3 * (a + 1)) / (x * x)))",
+        "((((-x) * (-y)) * (z * (-w))) * ((a * b) + (c * d)))",
+        "(((x * (y + z)) + (x * (w + v))) / ((a / b) / c))",
+        "(((x + x) * (y / z)) * (((a / b) * (b / a)) + ((y + x) * (x + y))))"
+    ];
+    println("\nExamples:\n+------------------------------------------------------------------------------------------------------------");
+    iter( 
+        examples, \example -> { 
+            expr = s2expr(example);  
+            transformed = parseAST(simplify(transformExpression(rules, expr)));
+            println("|Original: " + example);
+            println("|Transformed: " + transformed);
+            println("+------------------------------------------------------------------------------------------------------------"); 
+        } 
+    )
+}
