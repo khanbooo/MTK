@@ -41,59 +41,160 @@ parseAST(e: Expression) -> string{
     }
 }
 
+
+PatternMatching(vars: Tree<string, Expression>);
+
+matchPattern(pattern: Expression, expr: Expression) -> Maybe<PatternMatching> {
+    matching = PatternMatching(makeTree());
+    matchPatternWithVars(pattern, expr, matching)
+}
+
+matchPatternWithVars(pattern: Expression, expr: Expression, matching: PatternMatching) -> Maybe<PatternMatching> {
+    switch(pattern) {
+        Variable(name): {
+            // Проверяем, была ли уже сопоставлена эта переменная
+            switch(lookupTree(matching.vars, name)) {
+                Some(prevMatch): {
+                    if (equalExpr(prevMatch, expr)) Some(matching)
+                    else None();
+                }
+                None(): {
+                    // Новое сопоставление
+                    Some(PatternMatching(setTree(matching.vars, name, expr)));
+                }
+            }
+        }
+        Add(p1, p2): {
+            switch(expr) {
+                Add(e1, e2): {
+                    switch(matchPatternWithVars(p1, e1, matching)) {
+                        Some(m1): matchPatternWithVars(p2, e2, m1);
+                        None(): None();
+                    }
+                }
+                default: None();
+            }
+        }
+        Multiply(p1, p2): {
+            switch(expr) {
+                Multiply(e1, e2): {
+                    switch(matchPatternWithVars(p1, e1, matching)) {
+                        Some(m1): matchPatternWithVars(p2, e2, m1);
+                        None(): None();
+                    }
+                }
+                default: None();
+            }
+        }
+        Divide(p1, p2): {
+            switch(expr) {
+                Divide(e1, e2): {
+                    switch(matchPatternWithVars(p1, e1, matching)) {
+                        Some(m1): matchPatternWithVars(p2, e2, m1);
+                        None(): None();
+                    }
+                }
+                default: None();
+            }
+        }
+        default: {
+            if (equalExpr(pattern, expr)) Some(matching)
+            else None();
+        }
+            
+    }
+}
+
+applyMatching(expr: Expression, matching: PatternMatching) -> Expression {
+    switch(expr) {
+        Variable(name): {
+            switch(lookupTree(matching.vars, name)) {
+                Some(replacement): replacement;
+                None(): expr;
+            }
+        }
+        Add(e1, e2): Add(applyMatching(e1, matching), applyMatching(e2, matching));
+        Multiply(e1, e2): Multiply(applyMatching(e1, matching), applyMatching(e2, matching));
+        Divide(e1, e2): Divide(applyMatching(e1, matching), applyMatching(e2, matching));
+        default: expr;
+    }
+}
+
 transformExpression(rules: Tree<Expression, Expression>, e: Expression) -> Expression {
-    maybeMatch = lookupTree(rules, e);
-    switch (maybeMatch) {
-        Some(transformed): transformExpression(rules, transformed);
+    transformed = foldTree(rules, None(), \pattern, result, acc -> {
+        switch(acc) {
+            Some(x): Some(x);
+            None(): {
+                switch(matchPattern(pattern, e)) {
+                    Some(matching): Some(applyMatching(result, matching));
+                    None(): None();
+                }
+            }
+        }
+    });
+    
+    switch(transformed) {
+        Some(result): {
+            if (equalExpr(result, e)) e
+            else transformExpression(rules, result);
+        }
         None(): {
-            switch (e) {
+            switch(e) {
                 Add(e1, e2): {
                     newE1 = transformExpression(rules, e1);
                     newE2 = transformExpression(rules, e2);
-                    maybeNewMatch = lookupTree(rules, Add(newE1, newE2));
-                    switch (maybeNewMatch) {
-                        Some(result): transformExpression(rules, result);
-                        None(): Add(newE1, newE2);
-                    }
+                    newExpr = Add(newE1, newE2);
+                    if (equalExpr(newExpr, e)) e
+                    else transformExpression(rules, newExpr);
                 }
                 Multiply(e1, e2): {
                     newE1 = transformExpression(rules, e1);
                     newE2 = transformExpression(rules, e2);
-                    maybeNewMatch = lookupTree(rules, Multiply(newE1, newE2));
-                    switch (maybeNewMatch) {
-                        Some(result): transformExpression(rules, result);
-                        None(): Multiply(newE1, newE2);
-                    }
-                }
-                Subtract(e1, e2): {
-                    newE1 = transformExpression(rules, e1);
-                    newE2 = transformExpression(rules, e2);
-                    maybeNewMatch = lookupTree(rules, Subtract(newE1, newE2));
-                    switch (maybeNewMatch) {
-                        Some(result): transformExpression(rules, result);
-                        None(): Subtract(newE1, newE2);
-                    }
+                    newExpr = Multiply(newE1, newE2);
+                    if (equalExpr(newExpr, e)) e
+                    else transformExpression(rules, newExpr);
                 }
                 Divide(e1, e2): {
                     newE1 = transformExpression(rules, e1);
                     newE2 = transformExpression(rules, e2);
-                    maybeNewMatch = lookupTree(rules, Divide(newE1, newE2));
-                    switch (maybeNewMatch) {
-                        Some(result): transformExpression(rules, result);
-                        None(): Divide(newE1, newE2);
-                    }
-                }
-                Negative(e1): {
-                    newE1 = transformExpression(rules, e1);
-                    maybeNewMatch = lookupTree(rules, Negative(newE1));
-                    switch (maybeNewMatch) {
-                        Some(result): transformExpression(rules, result);
-                        None(): Negative(newE1);
-                    }
+                    newExpr = Divide(newE1, newE2);
+                    if (equalExpr(newExpr, e)) e
+                    else transformExpression(rules, newExpr);
                 }
                 default: e;
             }
         }
+    }
+}
+
+equalExpr(e1: Expression, e2: Expression) -> bool {
+    switch(e1) {
+        Add(l1, r1): 
+            switch(e2) {
+                Add(l2, r2): equalExpr(l1, l2) && equalExpr(r1, r2);
+                default: false;
+            }
+        Multiply(l1, r1):
+            switch(e2) {
+                Multiply(l2, r2): equalExpr(l1, l2) && equalExpr(r1, r2);
+                default: false;
+            }
+        Divide(l1, r1):
+            switch(e2) {
+                Divide(l2, r2): equalExpr(l1, l2) && equalExpr(r1, r2);
+                default: false;
+            }
+        Variable(n1):
+            switch(e2) {
+                Variable(n2): n1 == n2;
+                default: false;
+            }
+        Integer(v1):
+            switch(e2) {
+                Integer(v2): v1 == v2;
+                default: false;
+            }
+        default: false;
     }
 }
 
@@ -108,20 +209,21 @@ s2expr(str: string) -> Expression{
 main() {
     rules: Tree<Expression, Expression> = fold(
         [
-            "((x + y) = 0)",
-            "(((c * 6) + 7) = 1)",
-            "((1 + a) = (b + c))",
-            "(((x * y) + (x * z)) = (x * (y + z)))",
-            "(((a / b) * (c / d)) = ((a * c) / (b * d)))",
-            "(((x * y) * z) = (x * (y * z)))",
-            "(((-x) * (-y)) = (x * y))",
-            "(((a / b) / c) = (a / (b * c)))",
-            "((x + x) = (y + y))",
-            "(((a * b) + (c * d)) = ((d * a) + (b * c)))",
-            "(((-x) * y) = (x * (-(-y))))",
-            "(((x + y) * (y + x)) = (x * x))",
-            "(((a / b) * (b / a)) = (-(-1)))",
-            "((x * (y / z)) = ((z * x) / y))",
+            // "((x + y) = 0)",
+            // "(((c * 6) + 7) = 1)",
+            // "((1 + a) = (b + c))",
+            // "(((x * y) + (x * z)) = (x * (y + z)))",
+            // "(((a / b) * (c / d)) = ((a * c) / (b * d)))",
+            // "(((x * y) * z) = (x * (y * z)))",
+            // "(((-x) * (-y)) = (x * y))",
+            // "(((a / b) / c) = (a / (b * c)))",
+            // "((x + x) = (y + y))",
+            // "(((a * b) + (c * d)) = ((d * a) + (b * c)))",
+            // "(((-x) * y) = (x * (-(-y))))",
+            // "(((x + y) * (y + x)) = (x * x))",
+            // "(((a / b) * (b / a)) = (-(-1)))",
+            // "((x * (y / z)) = ((z * x) / y))",
+            "((x / x) = 1)"
         ],
         makeTree(),
         \rulesTree: Tree<Expression, Expression>, rule: string -> {
@@ -139,11 +241,12 @@ main() {
     });
     println("+------------------------------------------------------------------------------------------------------------");
     examples = [ 
-        "((x+y)+z)", 
-        "((((a + 1) / (7 * c)) * (((c * 6) + 7) / x)) / ((3 * (a + 1)) / (x * x)))",
-        "((((-x) * (-y)) * (z * (-w))) * ((a * b) + (c * d)))",
-        "(((x * (y + z)) + (x * (w + v))) / ((a / b) / c))",
-        "(((x + x) * (y / z)) * (((a / b) * (b / a)) + ((x + y) * (y + x))))"
+        // "((x+y)+z)", 
+        // "((((a + 1) / (7 * c)) * (((c * 6) + 7) / x)) / ((3 * (a + 1)) / (x * x)))",
+        // "((((-x) * (-y)) * (z * (-w))) * ((a * b) + (c * d)))",
+        // "(((x * (y + z)) + (x * (w + v))) / ((a / b) / c))",
+        // "(((x + x) * (y / z)) * (((a / b) * (b / a)) + ((x + y) * (y + x))))"
+        "((y + 1) * (y + 1))",
     ];
     println("\nExamples:\n+------------------------------------------------------------------------------------------------------------");
     iter( 
